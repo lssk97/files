@@ -36,27 +36,48 @@ OUTPUT_FILE = PROJECT_ROOT / "docs" / "databases.md"
 IGNORED_SAMPLE_VALUES = {"NULL", "NULO", "NONE", "NAN", "", "N/A"}
 
 def extract_valid_sample(series: pl.Series) -> str:
-    """Extrai um exemplo válido ignorando nulos do Polars e textos como 'NULL' ou 'NULO'."""
+    """Extrai um exemplo válido ignorando nulos, textos como 'NULL'/'NULO' e números menores que zero (< 0)."""
     non_nulls = series.drop_nulls()
     
-    # 1. Tenta encontrar a primeira linha que NÃO seja uma string do tipo "NULL" / "NULO" / vazia
+    # 1. Primeira passagem: ignora strings nulas e números negativos (< 0)
     for val in non_nulls:
         val_str = str(val).strip()
         val_upper = val_str.upper()
         
-        # Se não for uma das strings ignoradas e não contiver "NULL" ou "NULO"
+        # Ignora se for texto referente a nulo
+        if (
+            val_upper in IGNORED_SAMPLE_VALUES
+            or "NULL" in val_upper
+            or "NULO" in val_upper
+        ):
+            continue
+        
+        # Tenta verificar se é número e se é negativo
+        try:
+            num_val = float(val)
+            if num_val < 0:
+                continue  # Pula números menores que zero
+        except (ValueError, TypeError):
+            # Não é um número (ex: texto comum, datas, etc.), segue normalmente
+            pass
+            
+        return val_str
+            
+    # 2. Segunda passagem (Fallback): Se só existirem números negativos, pega o primeiro valor não-texto-nulo
+    for val in non_nulls:
+        val_str = str(val).strip()
+        val_upper = val_str.upper()
         if (
             val_upper not in IGNORED_SAMPLE_VALUES
             and "NULL" not in val_upper
             and "NULO" not in val_upper
         ):
             return val_str
-            
-    # 2. Fallback: Se todas as linhas forem "NULL"/"NULO", usa o primeiro valor não-nulo disponível
+
+    # 3. Fallback final: Se tudo for nulo/inválido
     if len(non_nulls) > 0:
         return str(non_nulls[0]).strip()
         
-    # 3. Se a coluna for 100% nula
     return "N/A"
 
 def generate_docs():
