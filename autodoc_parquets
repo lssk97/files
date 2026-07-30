@@ -2,25 +2,50 @@ from pathlib import Path
 from collections import defaultdict
 import polars as pl
 
-# Resolve o caminho raiz do projeto a partir da localização deste script
-# scripts/generate_db_docs.py -> .parent.parent = raiz do projeto
+# Tenta localizar a pasta databases importando a biblioteca diretamente
+def find_db_dir() -> Path:
+    try:
+        import motor_de_pricing
+        package_root = Path(motor_de_pricing.__file__).resolve().parent
+        db_dir = package_root / "databases"
+        if db_dir.exists():
+            return db_dir
+    except ImportError:
+        pass
+
+    # Fallbacks de caminhos locais comuns caso a biblioteca não esteja instalada no venv
+    project_root = Path(__file__).resolve().parent.parent
+    possible_paths = [
+        project_root / "motor_de_pricing" / "databases",
+        project_root / "src" / "motor_de_pricing" / "databases",
+    ]
+
+    for path in possible_paths:
+        if path.exists():
+            return path
+
+    raise FileNotFoundError(
+        "Não foi possível encontrar a pasta 'databases'. "
+        "Certifique-se de que o motor_de_pricing está instalado no ambiente ou presente no projeto."
+    )
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DB_DIR = PROJECT_ROOT / "motor_de_pricing" / "databases"
 OUTPUT_FILE = PROJECT_ROOT / "docs" / "databases.md"
 
 def generate_docs():
-    print(f"🔍 Procurando arquivos Parquet em: {DB_DIR}")
-
-    if not DB_DIR.exists():
-        print(f"❌ Erro: O diretório '{DB_DIR}' não foi encontrado!")
-        print("Certifique-se de que a pasta 'motor_de_pricing/databases' existe na raiz do projeto.")
+    try:
+        db_dir = find_db_dir()
+    except FileNotFoundError as e:
+        print(f"❌ Erro: {e}")
         return
 
+    print(f"🔍 Pasta de databases localizada em: {db_dir}")
+
     # Busca todos os arquivos .parquet recursivamente
-    all_parquet_files = sorted(list(DB_DIR.rglob("*.parquet")))
+    all_parquet_files = sorted(list(db_dir.rglob("*.parquet")))
 
     if not all_parquet_files:
-        print(f"⚠️ Nenhum arquivo .parquet encontrado dentro de: {DB_DIR}")
+        print(f"⚠️ Nenhum arquivo .parquet encontrado dentro de: {db_dir}")
         return
 
     print(f"📦 Encontrados {len(all_parquet_files)} arquivos .parquet. Gerando documentação...")
@@ -28,7 +53,7 @@ def generate_docs():
     # Agrupa arquivos pela subpasta/categoria
     files_by_category = defaultdict(list)
     for pfile in all_parquet_files:
-        category = pfile.parent.relative_to(DB_DIR)
+        category = pfile.parent.relative_to(db_dir)
         files_by_category[category].append(pfile)
 
     markdown_output = """# Base de Dados de Suporte (Parquet)
@@ -46,7 +71,12 @@ Esta página documenta os schemas de todas as tabelas em formato `.parquet` util
                 # Lê apenas as primeiras 5 linhas com Polars
                 df = pl.read_parquet(file, n_rows=5)
                 file_name = file.name
-                rel_path = file.relative_to(PROJECT_ROOT)
+                
+                # Se estiver dentro do projeto, mostra caminho relativo limpo
+                try:
+                    rel_path = file.relative_to(PROJECT_ROOT)
+                except ValueError:
+                    rel_path = f"motor_de_pricing/databases/{category}/{file_name}"
 
                 markdown_output += f"### 📄 `{file_name}`\n"
                 markdown_output += f"* **Caminho:** `{rel_path}`\n"
