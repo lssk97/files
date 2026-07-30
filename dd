@@ -1,0 +1,21 @@
+import webbrowser
+from pathlib import Path
+
+def abrir_documentacao():
+    """
+    Abre a documentação offline do Motor de Pricing no navegador padrão do usuário.
+    """
+    # Descobre onde a biblioteca está instalada na máquina do usuário
+    import motor_de_pricing
+    caminho_base = Path(motor_de_pricing.__file__).resolve().parent
+    
+    # Caminho para o index.html da pasta que você embarcou
+    caminho_docs = caminho_base / "site" / "index.html"
+    
+    if caminho_docs.exists():
+        print("🌐 Abrindo a documentação no seu navegador...")
+        # Abre o arquivo local no Chrome/Edge/Firefox
+        webbrowser.open(f"file://{caminho_docs}")
+    else:
+        print("❌ Erro: Documentação offline não encontrada na instalação.")
+        print("Por favor, acesse a versão online no Azure DevOps.")
