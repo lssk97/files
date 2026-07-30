@@ -1,0 +1,47 @@
+# Motor de Pricing (v0.2.0)
+
+Bem-vindo à documentação do **Motor de Pricing**. Esta biblioteca é responsável por processar e calcular regras de precificação, custos de bandeiras (Visa, Mastercard, Elo, Amex, Hiper), intercâmbio e demonstrativo de resultados (Profit and Loss).
+
+## Módulos Principais
+
+* **Motor de Custos**: Cálculos relacionados às taxas de bandeiras, gastos fixos/variáveis e float.
+* **Motor de Preços**: MDR, mensalidades/aluguel de terminais, antecipação e ISS.
+* **Motor de Intercâmbio**: Regras de interchange e MCCs.
+* **Profit & Loss**: Consolidação dos cálculos financeiros.
+
+# Motor de Custos
+
+Este módulo gerencia o cálculo de custos por bandeira e custos operacionais.
+
+## Execução Principal
+::: motor_de_pricing.motor_custos.main
+
+## Funções Auxiliares
+::: motor_de_pricing.motor_custos.funcs
+
+## Custos por Bandeira
+::: motor_de_pricing.motor_custos.custo_bandeira.visa.visa
+::: motor_de_pricing.motor_custos.custo_bandeira.master.master
+::: motor_de_pricing.motor_custos.custo_bandeira.elo.elo
+
+# Motor de Preços
+
+Módulo focado na precificação direta (MDR, Aluguel, Antecipação e Impostos).
+
+## Main
+::: motor_de_pricing.motor_precos.main
+
+## MDR (Merchant Discount Rate)
+::: motor_de_pricing.motor_precos.mdr.merchant_discount
+
+## Antecipação
+::: motor_de_pricing.motor_precos.antecipacao.antecipacao
+
+
+# Schemas e Validações
+
+Módulo responsável pela validação dos dados transacionais e estruturas Pydantic.
+
+::: motor_de_pricing.geral.schema_transacional
+::: motor_de_pricing.geral.custom_pydantic
+
