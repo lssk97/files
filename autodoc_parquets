@@ -1,0 +1,49 @@
+from pathlib import Path
+import pandas as pd
+
+# Caminho do diretório de databases do projeto
+db_dir = Path("motor_de_pricing/databases")
+
+markdown_output = """# Base de Dados de Suporte (Parquet)
+
+Esta página documenta os schemas de todas as tabelas em formato `.parquet` utilizadas pelos motores de cálculo.
+
+---
+"""
+
+# Agrupa por subdiretório
+for subfolder in sorted(db_dir.glob("**/*")):
+    parquet_files = sorted(list(subfolder.glob("*.parquet")))
+    if not parquet_files:
+        continue
+    
+    relative_path = subfolder.relative_to(db_dir)
+    markdown_output += f"\n## Categoria: `{relative_path}`\n\n"
+    
+    for file in parquet_files:
+        df = pd.read_parquet(file)
+        file_name = file.name
+        
+        markdown_output += f"### 📄 `{file_name}`\n"
+        markdown_output += f"* **Caminho:** `{file.relative_to(db_dir.parent)}`\n"
+        markdown_output += f"* **Total de Colunas:** {len(df.columns)}\n\n"
+        
+        markdown_output += "| Coluna | Tipo de Dado | Exemplo |\n"
+        markdown_output += "| :--- | :--- | :--- |\n"
+        
+        for col in df.columns:
+            dtype = str(df[col].dtype)
+            sample_val = str(df[col].dropna().iloc[0]) if not df[col].dropna().empty else "N/A"
+            # Limita tamanho do exemplo para não quebrar a tabela
+            if len(sample_val) > 30:
+                sample_val = sample_val[:27] + "..."
+            markdown_output += f"| `{col}` | `{dtype}` | `{sample_val}` |\n"
+        
+        markdown_output += "\n"
+
+# Salva a documentação diretamente na pasta docs/ do MkDocs
+output_path = Path("docs/databases.md")
+output_path.parent.mkdir(parents=True, exist_ok=True)
+output_path.write_text(markdown_output, encoding="utf-8")
+
+print(f"Documentação gerada com sucesso em {output_path}!")
