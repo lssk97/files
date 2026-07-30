@@ -1,21 +1,37 @@
 import webbrowser
 from pathlib import Path
+import motor_de_pricing
 
 def abrir_documentacao():
     """
-    Abre a documentação offline do Motor de Pricing no navegador padrão do usuário.
+    Abre a documentação local no navegador padrão.
+    Suporta busca dinâmica tanto no ambiente de dev (src-layout) quanto no pacote instalado.
     """
-    # Descobre onde a biblioteca está instalada na máquina do usuário
-    import motor_de_pricing
-    caminho_base = Path(motor_de_pricing.__file__).resolve().parent
-    
-    # Caminho para o index.html da pasta que você embarcou
-    caminho_docs = caminho_base / "site" / "index.html"
-    
-    if caminho_docs.exists():
-        print("🌐 Abrindo a documentação no seu navegador...")
-        # Abre o arquivo local no Chrome/Edge/Firefox
+    # Caminho onde está o código (ex: .../meu_projeto/src/motor_de_pricing)
+    package_dir = Path(motor_de_pricing.__file__).resolve().parent
+
+    # Lista de locais possíveis para encontrar o arquivo index.html
+    possiveis_caminhos = [
+        # 1. Embutido dentro do pacote em produção (site-packages/motor_de_pricing/site/index.html)
+        package_dir / "site" / "index.html",
+        
+        # 2. Desenvolvimento local com src-layout (meu_projeto/site/index.html)
+        #    package_dir.parent.parent sobe de 'motor_de_pricing' -> 'src' -> 'meu_projeto'
+        package_dir.parent.parent / "site" / "index.html",
+        
+        # 3. Desenvolvimento local sem src-layout (meu_projeto/site/index.html)
+        package_dir.parent / "site" / "index.html",
+    ]
+
+    caminho_docs = None
+    for path in possiveis_caminhos:
+        if path.exists():
+            caminho_docs = path
+            break
+
+    if caminho_docs:
+        print(f"🌐 Abrindo a documentação local: {caminho_docs}")
         webbrowser.open(f"file://{caminho_docs}")
     else:
-        print("❌ Erro: Documentação offline não encontrada na instalação.")
-        print("Por favor, acesse a versão online no Azure DevOps.")
+        print("❌ Erro: A documentação compilada (site/index.html) não foi encontrada.")
+        print("💡 Se estiver em desenvolvimento, execute 'uv run mkdocs build' na raiz do projeto.")
