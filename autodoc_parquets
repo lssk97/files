@@ -130,3 +130,50 @@ suportes = motor.get_suportes()
 # 3. Acessa uma tabela específica (retorna a tabela correspondente)
 df_regras_intercambio = suportes.get("regras_intercambio")
 print(df_regras_intercambio)
+"""
+# --- FIM DA MENSAGEM DE DESTAQUE ---
+
+for category, files in files_by_category.items():
+    markdown_output += f"\n## Categoria: `{category}`\n\n"
+
+    for file in files:
+        try:
+            # Lê até 50 linhas para ter uma boa amostragem de dados reais
+            df = pl.read_parquet(file, n_rows=50)
+            file_name = file.name
+            
+            # Exibe caminho relativo limpo
+            try:
+                rel_path = file.relative_to(PROJECT_ROOT)
+            except ValueError:
+                rel_path = f"motor_de_pricing/databases/{category}/{file_name}"
+
+            markdown_output += f"### 📄 `{file_name}`\n"
+            markdown_output += f"* **Caminho:** `{rel_path}`\n"
+            markdown_output += f"* **Total de Colunas:** {len(df.columns)}\n\n"
+
+            markdown_output += "| Coluna | Tipo de Dado | Exemplo |\n"
+            markdown_output += "| :--- | :--- | :--- |\n"
+
+            for col, dtype in df.schema.items():
+                sample_val = extract_valid_sample(df[col])
+
+                # Limpa quebras de linha e limita tamanho para não quebrar a tabela Markdown
+                sample_val = sample_val.replace("\n", " ")
+                if len(sample_val) > 30:
+                    sample_val = sample_val[:27] + "..."
+
+                markdown_output += f"| `{col}` | `{dtype}` | `{sample_val}` |\n"
+
+            markdown_output += "\n"
+
+        except Exception as e:
+            print(f"⚠️ Erro ao ler o arquivo {file.name}: {e}")
+            markdown_output += f"### 📄 `{file.name}`\n"
+            markdown_output += f"*Erro ao ler o schema: {e}*\n\n"
+
+# Salva o arquivo docs/databases/databases.md
+OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+OUTPUT_FILE.write_text(markdown_output, encoding="utf-8")
+
+print(f"✅ Documentação gerada com sucesso em: {OUTPUT_FILE}")
