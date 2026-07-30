@@ -1,0 +1,37 @@
+import logging
+
+LOGGER_NAME = "motor_de_pricing"
+
+# 1. Instancia o logger base
+logger = logging.getLogger(LOGGER_NAME)
+
+# 2. Silencia por padrão com o NullHandler
+logger.addHandler(logging.NullHandler())
+
+
+def enable_logging(
+    level: int = logging.INFO,
+    to_console: bool = True,
+    log_file: str | None = None,
+    fmt: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+) -> logging.Logger:
+    """Ativa explicitamente os logs do Motor de Pricing."""
+    # Remove handlers antigos (exceto NullHandler)
+    for handler in list(logger.handlers):
+        if not isinstance(handler, logging.NullHandler):
+            logger.removeHandler(handler)
+
+    formatter = logging.Formatter(fmt)
+    logger.setLevel(level)
+
+    if to_console:
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+
+    if log_file:
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    return logger
