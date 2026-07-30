@@ -1,0 +1,79 @@
+# Motor de Intercâmbio
+
+O **Motor de Intercâmbio** é o componente responsável por determinar a tarifa de intercâmbio (*interchange rate*) aplicável a cada transação financeira com base em parâmetros da transação (Bandeira, MCC, Modalidade, Tipo de Cartão, etc.).
+
+---
+
+## 🎯 Propósito e Responsabilidade
+
+* **Mapeamento de Programas de MCC:** Identifica o enquadramento do Merchant Category Code (MCC) nos programas tarifários das bandeiras[cite: 1].
+* **Tratamento de Fallback:** Aplica regras de segurança (`fallback_mcc.parquet`) quando o MCC original não possui correspondência direta[cite: 1].
+* **Cálculo da Tarifa:** Retorna o percentual e/ou valor fixo de intercâmbio a ser deduzido ou cobrado no arranjo de pagamento[cite: 1].
+
+---
+
+## 💻 Documentação de Código (API Reference)
+
+Abaixo está a referência automática extraída diretamente das funções e módulos Python.
+
+### Módulo Principal de Cálculo (`itc.py`)
+
+::: motor_de_pricing.motor_intercambio.itc
+    options:
+      show_source: true
+      heading_level: 3
+
+### Funções Auxiliares (`funcs.py`)
+
+::: motor_de_pricing.motor_intercambio.funcs
+    options:
+      show_source: true
+      heading_level: 3
+
+---
+
+## 📊 Tabelas Parquet de Suporte
+
+O cálculo do intercâmbio utiliza três tabelas de domínio armazenadas na pasta `databases/intercambio/`[cite: 1]:
+
+| Tabela Parquet | Descrição | Mapeamento Principal |
+| :--- | :--- | :--- |
+| `regras_intercambio.parquet`[cite: 1] | Tabela com percentuais e valores fixos por programa e bandeira. | `bandeira`, `programa`, `modalidade` |
+| `programas_mcc.parquet`[cite: 1] | Mapeia cada código MCC para seu respectivo programa da bandeira. | `mcc`, `bandeira`, `programa` |
+| `fallback_mcc.parquet`[cite: 1] | Define a regra genérica/padrão caso o MCC seja desconhecido. | `mcc_fallback`, `bandeira` |
+
+> 💡 **Nota:** Os schemas detalhados e tipos de dados dessas tabelas podem ser consultados na página [Bases de Suporte (Parquet)](../databases/databases.md).
+
+---
+
+## ⚙️ Fluxo de Decisão do Intercâmbio
+
+```text
+ ┌─────────────────────────┐
+ │   Transação de Entrada  │ (Bandeira, MCC, Valor, Modalidade)
+ └────────────┬────────────┘
+              │
+              ▼
+ ┌─────────────────────────┐
+ │ Existe MCC em           │ ─── NÃO ───► Aplica regras do fallback_mcc.parquet[cite: 1]
+ │ programas_mcc.parquet?  │[cite: 1]                      │
+ └────────────┬────────────┘                        │
+              │ SIM                                 │
+              ▼                                     │
+ ┌─────────────────────────┐                        │
+ │ Obter Programa da       │ ◄──────────────────────┘
+ │ Bandeira                │
+ └────────────┬────────────┘
+              │
+              ▼
+ ┌─────────────────────────┐
+ │ Buscar taxas em         │
+ │ regras_intercambio.     │[cite: 1]
+ │ parquet                 │
+ └────────────┬────────────┘
+              │
+              ▼
+ ┌─────────────────────────┐
+ │ Retornar Taxa % e       │
+ │ Tarifa Fixa (R$)        │
+ └─────────────────────────┘
