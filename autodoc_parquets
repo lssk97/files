@@ -31,10 +31,8 @@ def find_db_dir() -> Path:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# --- ALTERAÇÃO AQUI ---
-# Agora o arquivo será salvo em docs/databases/databases.md
+# O arquivo é salvo em docs/databases/databases.md
 OUTPUT_FILE = PROJECT_ROOT / "docs" / "databases" / "databases.md"
-# ----------------------
 
 # Lista de valores considerados 'falsos nulos' para serem ignorados na amostragem
 IGNORED_SAMPLE_VALUES = {"NULL", "NULO", "NONE", "NAN", "", "N/A"}
@@ -108,61 +106,27 @@ def generate_docs():
         category = pfile.parent.relative_to(db_dir)
         files_by_category[category].append(pfile)
 
+    # --- INÍCIO DA MENSAGEM E EXEMPLO DE USO ---
     markdown_output = """# Base de Dados de Suporte (Parquet)
 
 Esta página documenta os schemas de todas as tabelas em formato `.parquet` utilizadas pelos motores de cálculo.
 
 ---
-"""
 
-    for category, files in files_by_category.items():
-        markdown_output += f"\n## Categoria: `{category}`\n\n"
+> 💡 **Acesso Programático:**
+> Todas as tabelas de suporte podem ser carregadas dinamicamente via código através do método `get_suportes()` da classe `Motor` (localizada em `motor_de_pricing/motor.py`).
 
-        for file in files:
-            try:
-                # Lê até 50 linhas para ter uma boa amostragem de dados reais
-                df = pl.read_parquet(file, n_rows=50)
-                file_name = file.name
-                
-                # Exibe caminho relativo limpo
-                try:
-                    rel_path = file.relative_to(PROJECT_ROOT)
-                except ValueError:
-                    rel_path = f"motor_de_pricing/databases/{category}/{file_name}"
+### 💻 Exemplo de Uso em Python
 
-                markdown_output += f"### 📄 `{file_name}`\n"
-                markdown_output += f"* **Caminho:** `{rel_path}`\n"
-                markdown_output += f"* **Total de Colunas:** {len(df.columns)}\n\n"
+```python
+from motor_de_pricing.motor import Motor
 
-                markdown_output += "| Coluna | Tipo de Dado | Exemplo |\n"
-                markdown_output += "| :--- | :--- | :--- |\n"
+# 1. Instancia o motor principal
+motor = Motor()
 
-                for col, dtype in df.schema.items():
-                    sample_val = extract_valid_sample(df[col])
+# 2. Obtém os dicionários/estruturas com as tabelas de suporte recarregadas em memória
+suportes = motor.get_suportes()
 
-                    # Limpa quebras de linha e limita tamanho para não quebrar a tabela Markdown
-                    sample_val = sample_val.replace("\n", " ")
-                    if len(sample_val) > 30:
-                        sample_val = sample_val[:27] + "..."
-
-                    markdown_output += f"| `{col}` | `{dtype}` | `{sample_val}` |\n"
-
-                markdown_output += "\n"
-
-            except Exception as e:
-                print(f"⚠️ Erro ao ler o arquivo {file.name}: {e}")
-                markdown_output += f"### 📄 `{file.name}`\n"
-                markdown_output += f"*Erro ao ler o schema: {e}*\n\n"
-
-    # Salva o arquivo docs/databases/databases.md
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_FILE.write_text(markdown_output, encoding="utf-8")
-
-    print(f"✅ Documentação gerada com sucesso em: {OUTPUT_FILE}")
-
-# Suporte para Hook do MkDocs
-def on_pre_build(config, **kwargs):
-    generate_docs()
-
-if __name__ == "__main__":
-    generate_docs()
+# 3. Acessa uma tabela específica (retorna a tabela correspondente)
+df_regras_intercambio = suportes.get("regras_intercambio")
+print(df_regras_intercambio)
