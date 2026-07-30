@@ -32,6 +32,33 @@ def find_db_dir() -> Path:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_FILE = PROJECT_ROOT / "docs" / "databases.md"
 
+# Lista de valores considerados 'falsos nulos' para serem ignorados na amostragem
+IGNORED_SAMPLE_VALUES = {"NULL", "NULO", "NONE", "NAN", "", "N/A"}
+
+def extract_valid_sample(series: pl.Series) -> str:
+    """Extrai um exemplo válido ignorando nulos do Polars e textos como 'NULL' ou 'NULO'."""
+    non_nulls = series.drop_nulls()
+    
+    # 1. Tenta encontrar a primeira linha que NÃO seja uma string do tipo "NULL" / "NULO" / vazia
+    for val in non_nulls:
+        val_str = str(val).strip()
+        val_upper = val_str.upper()
+        
+        # Se não for uma das strings ignoradas e não contiver "NULL" ou "NULO"
+        if (
+            val_upper not in IGNORED_SAMPLE_VALUES
+            and "NULL" not in val_upper
+            and "NULO" not in val_upper
+        ):
+            return val_str
+            
+    # 2. Fallback: Se todas as linhas forem "NULL"/"NULO", usa o primeiro valor não-nulo disponível
+    if len(non_nulls) > 0:
+        return str(non_nulls[0]).strip()
+        
+    # 3. Se a coluna for 100% nula
+    return "N/A"
+
 def generate_docs():
     try:
         db_dir = find_db_dir()
@@ -68,11 +95,11 @@ Esta página documenta os schemas de todas as tabelas em formato `.parquet` util
 
         for file in files:
             try:
-                # Lê apenas as primeiras 5 linhas com Polars
-                df = pl.read_parquet(file, n_rows=5)
+                # Lê até 50 linhas para ter uma boa amostragem de dados reais
+                df = pl.read_parquet(file, n_rows=50)
                 file_name = file.name
                 
-                # Se estiver dentro do projeto, mostra caminho relativo limpo
+                # Exibe caminho relativo limpo
                 try:
                     rel_path = file.relative_to(PROJECT_ROOT)
                 except ValueError:
@@ -86,10 +113,9 @@ Esta página documenta os schemas de todas as tabelas em formato `.parquet` util
                 markdown_output += "| :--- | :--- | :--- |\n"
 
                 for col, dtype in df.schema.items():
-                    non_nulls = df[col].drop_nulls()
-                    sample_val = str(non_nulls[0]) if len(non_nulls) > 0 else "N/A"
+                    sample_val = extract_valid_sample(df[col])
 
-                    # Limpa quebras de linha e limita tamanho para a tabela Markdown
+                    # Limpa quebras de linha e limita tamanho para não quebrar a tabela Markdown
                     sample_val = sample_val.replace("\n", " ")
                     if len(sample_val) > 30:
                         sample_val = sample_val[:27] + "..."
