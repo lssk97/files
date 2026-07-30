@@ -1,54 +1,87 @@
 from pathlib import Path
+from collections import defaultdict
 import polars as pl
 
-# Caminho do diretório de databases do projeto
-db_dir = Path("motor_de_pricing/databases")
+# Resolve o caminho raiz do projeto a partir da localização deste script
+# scripts/generate_db_docs.py -> .parent.parent = raiz do projeto
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DB_DIR = PROJECT_ROOT / "motor_de_pricing" / "databases"
+OUTPUT_FILE = PROJECT_ROOT / "docs" / "databases.md"
 
-markdown_output = """# Base de Dados de Suporte (Parquet)
+def generate_docs():
+    print(f"🔍 Procurando arquivos Parquet em: {DB_DIR}")
+
+    if not DB_DIR.exists():
+        print(f"❌ Erro: O diretório '{DB_DIR}' não foi encontrado!")
+        print("Certifique-se de que a pasta 'motor_de_pricing/databases' existe na raiz do projeto.")
+        return
+
+    # Busca todos os arquivos .parquet recursivamente
+    all_parquet_files = sorted(list(DB_DIR.rglob("*.parquet")))
+
+    if not all_parquet_files:
+        print(f"⚠️ Nenhum arquivo .parquet encontrado dentro de: {DB_DIR}")
+        return
+
+    print(f"📦 Encontrados {len(all_parquet_files)} arquivos .parquet. Gerando documentação...")
+
+    # Agrupa arquivos pela subpasta/categoria
+    files_by_category = defaultdict(list)
+    for pfile in all_parquet_files:
+        category = pfile.parent.relative_to(DB_DIR)
+        files_by_category[category].append(pfile)
+
+    markdown_output = """# Base de Dados de Suporte (Parquet)
 
 Esta página documenta os schemas de todas as tabelas em formato `.parquet` utilizadas pelos motores de cálculo.
 
 ---
 """
 
-# Agrupa por subdiretório
-for subfolder in sorted(db_dir.glob("**/*")):
-    # Pega apenas arquivos parquet diretamente na pasta atual
-    parquet_files = sorted([f for f in subfolder.glob("*.parquet") if f.parent == subfolder])
-    if not parquet_files:
-        continue
+    for category, files in files_by_category.items():
+        markdown_output += f"\n## Categoria: `{category}`\n\n"
 
-    relative_path = subfolder.relative_to(db_dir)
-    markdown_output += f"\n## Categoria: `{relative_path}`\n\n"
+        for file in files:
+            try:
+                # Lê apenas as primeiras 5 linhas com Polars
+                df = pl.read_parquet(file, n_rows=5)
+                file_name = file.name
+                rel_path = file.relative_to(PROJECT_ROOT)
 
-    for file in parquet_files:
-        # Lê apenas as primeiras 10 linhas via Polars para inspecionar schema e exemplos
-        df = pl.read_parquet(file, n_rows=10)
-        file_name = file.name
+                markdown_output += f"### 📄 `{file_name}`\n"
+                markdown_output += f"* **Caminho:** `{rel_path}`\n"
+                markdown_output += f"* **Total de Colunas:** {len(df.columns)}\n\n"
 
-        markdown_output += f"### 📄 `{file_name}`\n"
-        markdown_output += f"* **Caminho:** `{file.relative_to(db_dir.parent)}`\n"
-        markdown_output += f"* **Total de Colunas:** {len(df.columns)}\n\n"
+                markdown_output += "| Coluna | Tipo de Dado | Exemplo |\n"
+                markdown_output += "| :--- | :--- | :--- |\n"
 
-        markdown_output += "| Coluna | Tipo de Dado | Exemplo |\n"
-        markdown_output += "| :--- | :--- | :--- |\n"
+                for col, dtype in df.schema.items():
+                    non_nulls = df[col].drop_nulls()
+                    sample_val = str(non_nulls[0]) if len(non_nulls) > 0 else "N/A"
 
-        # Itera sobre o schema no Polars (dict de nome: dtype)
-        for col, dtype in df.schema.items():
-            non_nulls = df[col].drop_nulls()
-            sample_val = str(non_nulls[0]) if len(non_nulls) > 0 else "N/A"
+                    # Limpa quebras de linha e limita tamanho para a tabela Markdown
+                    sample_val = sample_val.replace("\n", " ")
+                    if len(sample_val) > 30:
+                        sample_val = sample_val[:27] + "..."
 
-            # Trata tamanho da string para não quebrar a tabela do Markdown
-            if len(sample_val) > 30:
-                sample_val = sample_val[:27] + "..."
+                    markdown_output += f"| `{col}` | `{dtype}` | `{sample_val}` |\n"
 
-            markdown_output += f"| `{col}` | `{dtype}` | `{sample_val}` |\n"
+                markdown_output += "\n"
 
-        markdown_output += "\n"
+            except Exception as e:
+                print(f"⚠️ Erro ao ler o arquivo {file.name}: {e}")
+                markdown_output += f"### 📄 `{file.name}`\n"
+                markdown_output += f"*Erro ao ler o schema: {e}*\n\n"
 
-# Salva a documentação diretamente na pasta docs/ do MkDocs
-output_path = Path("docs/databases.md")
-output_path.parent.mkdir(parents=True, exist_ok=True)
-output_path.write_text(markdown_output, encoding="utf-8")
+    # Salva o arquivo docs/databases.md
+    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT_FILE.write_text(markdown_output, encoding="utf-8")
 
-print(f"✅ Documentação gerada com sucesso em: {output_path}")
+    print(f"✅ Documentação gerada com sucesso em: {OUTPUT_FILE}")
+
+# Suporte para Hook do MkDocs
+def on_pre_build(config, **kwargs):
+    generate_docs()
+
+if __name__ == "__main__":
+    generate_docs()
