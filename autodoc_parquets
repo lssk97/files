@@ -30,7 +30,11 @@ def find_db_dir() -> Path:
     )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_FILE = PROJECT_ROOT / "docs" / "databases.md"
+
+# --- ALTERAÇÃO AQUI ---
+# Agora o arquivo será salvo em docs/databases/databases.md
+OUTPUT_FILE = PROJECT_ROOT / "docs" / "databases" / "databases.md"
+# ----------------------
 
 # Lista de valores considerados 'falsos nulos' para serem ignorados na amostragem
 IGNORED_SAMPLE_VALUES = {"NULL", "NULO", "NONE", "NAN", "", "N/A"}
@@ -150,7 +154,7 @@ Esta página documenta os schemas de todas as tabelas em formato `.parquet` util
                 markdown_output += f"### 📄 `{file.name}`\n"
                 markdown_output += f"*Erro ao ler o schema: {e}*\n\n"
 
-    # Salva o arquivo docs/databases.md
+    # Salva o arquivo docs/databases/databases.md
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_FILE.write_text(markdown_output, encoding="utf-8")
 
