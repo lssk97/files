@@ -128,3 +128,5 @@ Body:
 Plaintext
 grant_type=refresh_token&client_id=databricks-cli&refresh_token=SEU_REFRESH_TOKEN_AQUI
 A resposta desta chamada trará um access_token válido para a próxima ação HTTP utilizar na chamada da API do Databricks.
+
+https://<seu-workspace>/oidc/v1/authorize?response_type=code&client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46&redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient&scope=all-apis%20offline_access
