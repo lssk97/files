@@ -89,3 +89,42 @@ Observação importante sobre a rotação do Refresh Token
 A API do Databricks costuma retornar um novo refresh_token na resposta do Parse JSON toda vez que você renova o acesso.
 
 Para garantir que o fluxo rode infinitamente sem parar, adicione uma etapa ao final do seu fluxo para salvar a propriedade body('Parse_JSON')?['refresh_token'] em um repositório (como uma variável de ambiente do Power Automate, em uma célula do Excel Online ou SharePoint) e faça a Ação HTTP 1 ler o valor desse repositório a cada execução.
+
+
+1. Gerar o link correto no Navegador
+Monte a URL abaixo substituindo <seu-workspace> (ex: adb-123456789.11.azuredatabricks.net):
+
+Plaintext
+https://<seu-workspace>/oidc/v1/authorize?response_type=code&client_id=databricks-cli&redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient&scope=all-apis%20offline_access
+Cole o link no seu navegador e faça o login com suas credenciais.
+
+Após o login, a tela ficará em branco ou com uma mensagem do Microsoft Entra ID. Isso é o esperado.
+
+Copie toda a URL que está na barra de endereço. Ela estará parecida com isto:
+[https://login.microsoftonline.com/common/oauth2/nativeclient?code=eyJhbGci...&state=](https://login.microsoftonline.com/common/oauth2/nativeclient?code=eyJhbGci...&state=)...
+
+O seu código é apenas a sequência que fica entre code= e o & (ou até o final da URL).
+
+2. Trocar o Código pelo Refresh Token (PowerShell)
+Abra o PowerShell no seu computador e rode a requisição abaixo ajustando os valores:
+
+PowerShell
+Invoke-RestMethod -Uri "https://<seu-workspace>/oidc/v1/token" -Method Post -Body "grant_type=authorization_code&client_id=databricks-cli&code=<SEU_CODE_AQUI>&redirect_uri=https://login.microsoftonline.com/common/oauth2/nativeclient" -ContentType "application/x-www-form-urlencoded"
+Guarde o refresh_token gerado na resposta JSON.
+
+3. Configurar no Power Automate
+A partir daqui o fluxo fica 100% automático. No Power Automate, na sua primeira ação HTTP:
+
+Método: POST
+
+URI: https://<seu-workspace>/oidc/v1/token
+
+Headers:
+
+Content-Type: application/x-www-form-urlencoded
+
+Body:
+
+Plaintext
+grant_type=refresh_token&client_id=databricks-cli&refresh_token=SEU_REFRESH_TOKEN_AQUI
+A resposta desta chamada trará um access_token válido para a próxima ação HTTP utilizar na chamada da API do Databricks.
