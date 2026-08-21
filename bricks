@@ -1,33 +1,24 @@
+import json
 from databricks.sdk import WorkspaceClient
 
-# Inicializa o cliente usando as credenciais que já funcionam no seu ambiente
 w = WorkspaceClient()
 
-# Captura a configuração de autenticação do SDK
-config = w.config
+# 1. Captura o Access Token ativo gerado pelo SDK
+headers = w.config.authenticate()
+token = headers.get("Authorization", "").replace("Bearer ", "")
 
-print("=== INFORMAÇÕES DE AUTENTICAÇÃO DO SDK ===")
-print(f"Host: {config.host}")
-print(f"Auth Type: {config.auth_type}")
+print("=== TOKEN DE ACESSO ATUAL (Validade ~1h) ===")
+print(token)
 
-# Tenta extrair os tokens da credencial ativa
+# 2. Tenta extrair a credencial MSAL / OAuth armazenada internamente na memória do SDK
 try:
-    # Obtém o token de acesso e headers ativos gerados pelo SDK
-    headers = config.authenticate()
-    access_token = headers.get("Authorization", "").replace("Bearer ", "")
-    print(f"\n[+] Access Token (Validade 1h): {access_token[:20]}...")
-    
-    # Se a autenticação do SDK utilizou OAuth/MSAL, o refresh token fica no cache interno
-    if hasattr(config, "_credentials") and hasattr(config._credentials, "token_cache"):
-        print("\n[+] Buscando no cache MSAL...")
-        # Lendo o cache de tokens do MSAL internamente
-        cache = config._credentials.token_cache
-        # O método serialize() expõe a estrutura JSON do cache com o refresh_token
-        import json
-        cache_data = json.loads(cache.serialize())
-        
-        refresh_tokens = cache_data.get("RefreshToken", {})
-        for key, rt_info in refresh_tokens.items():
-            print(f"\n Refresh Token encontrado: {rt_info.get('secret')}")
+    credential = w.config._credentials
+    # Inspeciona os atributos privados da credencial
+    for attr in dir(credential):
+        if "token" in attr.lower() or "cache" in attr.lower():
+            val = getattr(credential, attr, None)
+            if val:
+                print(f"\n[+] Achado no atributo '{attr}':")
+                print(val)
 except Exception as e:
-    print(f"\nErro ao extrair diretamente do objeto: {e}")
+    print(f"\nNão foi possível inspecionar a memória interna: {e}")
