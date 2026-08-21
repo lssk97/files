@@ -1,0 +1,91 @@
+Visão Geral do Processo
+[Passo 1: Fazer 1x no Navegador] ──> Pega o Code ──> Troca pelo Refresh Token
+                                                               │
+[Passo 2: Power Automate Roda Sozinho] <────────────────────────┘
+Usando o Refresh Token para gerar Access Tokens novos a cada execução
+Passo 1: Obter o primeiro Refresh Token (Apenas 1 vez)
+O Databricks usa o App nativo para CLI e ferramentas de terceiros que possui um client_id público e padrão: databricks-cli.
+
+Monte a URL abaixo substituindo <seu-workspace> pela sua URL (exemplo: adb-123456789.11.azuredatabricks.net):
+
+Plaintext
+https://<seu-workspace>/oidc/v1/authorize?response_type=code&client_id=databricks-cli&redirect_uri=http://localhost:8020/callback&scope=all-apis%20offline_access
+Cole essa URL no navegador e faça login com a sua conta.
+
+A página tentará redirecionar para http://localhost:8020/callback?... e dará erro de página não encontrada (isso é normal e esperado).
+
+Olhe para a Barra de Endereço do navegador e copie o valor que está após code=:
+
+Plaintext
+http://localhost:8020/callback?code=eyJhbGci...&state=...
+                                    ▲▲▲▲▲▲▲▲
+                                 Copie este código
+Agora, abra um terminal (Prompt de Comando ou PowerShell) no seu computador e execute a chamada abaixo para gerar os seus tokens (substitua o <CODE_COPIADO> e o <seu-workspace>):
+
+PowerShell:
+
+PowerShell
+Invoke-RestMethod -Uri "https://<seu-workspace>/oidc/v1/token" -Method Post -Body "grant_type=authorization_code&client_id=databricks-cli&code=<CODE_COPIADO>&redirect_uri=http://localhost:8020/callback" -ContentType "application/x-www-form-urlencoded"
+O resultado retornado trará dois campos principais. Guarde o refresh_token:
+
+access_token: Vale por 1 hora.
+
+refresh_token: Vale por meses/anos (esta é a chave que usaremos no Power Automate).
+
+Passo 2: Configurar a Automação no Power Automate
+Com o refresh_token em mãos, monte o fluxo que roda 100% automático no Power Automate.
+
+Ação HTTP 1: Renovar o Access Token
+Esta ação envia o refresh_token guardado e obtém um access_token novo e válido no momento em que o fluxo roda.
+
+Método: POST
+
+URI: https://<seu-workspace>/oidc/v1/token
+
+Headers:
+
+Content-Type: application/x-www-form-urlencoded
+
+Body:
+
+Plaintext
+grant_type=refresh_token&client_id=databricks-cli&refresh_token=SEU_REFRESH_TOKEN_AQUI
+Ação Parse JSON: Mapear a Resposta
+Conteúdo (Content): body('HTTP_1')
+
+Esquema (Schema):
+
+JSON
+{
+  "type": "object",
+  "properties": {
+    "access_token": { "type": "string" },
+    "refresh_token": { "type": "string" },
+    "scope": { "type": "string" },
+    "token_type": { "type": "string" },
+    "expires_in": { "type": "integer" }
+  }
+}
+Ação HTTP 2: Executar o Comando no Databricks
+Agora você usa a saída dinâmica do access_token gerado na etapa anterior:
+
+Método: POST (ou GET, conforme a API do Databricks)
+
+URI: https://<seu-workspace>/api/2.1/jobs/run-now
+
+Headers:
+
+Authorization: Bearer @{body('Parse_JSON')?['access_token']}
+
+Content-Type: application/json
+
+Body:
+
+JSON
+{
+  "job_id": 123456789
+}
+Observação importante sobre a rotação do Refresh Token
+A API do Databricks costuma retornar um novo refresh_token na resposta do Parse JSON toda vez que você renova o acesso.
+
+Para garantir que o fluxo rode infinitamente sem parar, adicione uma etapa ao final do seu fluxo para salvar a propriedade body('Parse_JSON')?['refresh_token'] em um repositório (como uma variável de ambiente do Power Automate, em uma célula do Excel Online ou SharePoint) e faça a Ação HTTP 1 ler o valor desse repositório a cada execução.
