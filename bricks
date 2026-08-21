@@ -1,24 +1,35 @@
 import json
-from databricks.sdk import WorkspaceClient
+from pathlib import Path
+from azure.identity import InteractiveBrowserCredential, TokenCachePersistenceOptions
 
-w = WorkspaceClient()
+# Define um arquivo local seguro para gravar o cache MSAL do Python
+cache_options = TokenCachePersistenceOptions(name="databricks_powerautomate_cache")
 
-# 1. Captura o Access Token ativo gerado pelo SDK
-headers = w.config.authenticate()
-token = headers.get("Authorization", "").replace("Bearer ", "")
+# GUID Público do Azure Databricks
+DATABRICKS_RESOURCE = "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default"
 
-print("=== TOKEN DE ACESSO ATUAL (Validade ~1h) ===")
-print(token)
+print("Abrindo navegador para autenticação...")
+credential = InteractiveBrowserCredential(
+    token_cache_persistence_options=cache_options
+)
 
-# 2. Tenta extrair a credencial MSAL / OAuth armazenada internamente na memória do SDK
-try:
-    credential = w.config._credentials
-    # Inspeciona os atributos privados da credencial
-    for attr in dir(credential):
-        if "token" in attr.lower() or "cache" in attr.lower():
-            val = getattr(credential, attr, None)
-            if val:
-                print(f"\n[+] Achado no atributo '{attr}':")
-                print(val)
-except Exception as e:
-    print(f"\nNão foi possível inspecionar a memória interna: {e}")
+# Solicita o token para o Databricks
+token_object = credential.get_token(DATABRICKS_RESOURCE)
+print("\n[SUCCESS] Autenticado com sucesso!")
+
+# Lê o cache do MSAL gerado no disco para extrair o Refresh Token
+# No Windows, o cache persistente fica em %LOCALAPPDATA%\.IdentityService
+cache_path = Path.home() / "AppData" / "Local" / ".IdentityService" / "msal.cache"
+
+if cache_path.exists():
+    with open(cache_path, "r", encoding="utf-8") as f:
+        try:
+            raw_data = f.read()
+            # Tenta converter se não estiver criptografado pelo SO
+            cache_json = json.loads(raw_data)
+            print("\n=== REFRESH TOKENS ENCONTRADOS NO CACHE ===")
+            for key, item in cache_json.get("RefreshToken", {}).items():
+                print(f"\nRefresh Token: {item.get('secret')}")
+        except Exception:
+            print(f"\nO arquivo de cache foi gerado em: {cache_path}")
+            print("O arquivo está protegido pelo DPAPI do Windows.")
